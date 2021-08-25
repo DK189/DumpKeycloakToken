@@ -308,7 +308,7 @@
         });
 
         share.addEventListener("click", function () {
-            // try {
+            try {
                 var store = {...localStorage};
                 var share = {};
                 for(let k in store) {
@@ -316,14 +316,15 @@
                         share[k] = store[k];
                     }
                 }
-                navigator.clipboard.writeText(`${(u => (u.hash = `share=${btoa(JSON.stringify(localStorage))}`,u))(new URL(location.href))}`);
+                console.log("Sharing", share, store);
+                navigator.clipboard.writeText(`${(u => (u.hash = `share=${btoa(JSON.stringify(share))}`,u))(new URL(location.href))}`);
                 share_tooltip.show();
                 setTimeout(function () {
                     share_tooltip.hide();
                 }, 1500);
-            // } catch {
+            } catch {
 
-            // }
+            }
         });
 
         if (location.hash.startsWith("#share=")) {
