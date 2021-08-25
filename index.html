@@ -136,12 +136,12 @@
             });
 
             function store (data) {
-                localStorage.setItem(`app@${app._id}@keycloak`, JSON.stringify(data));
+                localStorage.setItem(`keycloak@${app._id}@store`, JSON.stringify(data));
             }
 
             function getStore () {
                 return JSON.parse(
-                    localStorage.getItem(`app@${app._id}@keycloak`)
+                    localStorage.getItem(`keycloak@${app._id}@store`)
                 ) || null;
             }
 
