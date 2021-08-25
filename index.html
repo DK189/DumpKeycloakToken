@@ -351,7 +351,11 @@
 
         render(true);
 
-        if (location.search) location.search = "";
+        if (location.search) {
+            setTimeout(function () {
+                location.search = ""
+            }, 500);
+        }
         window.addEventListener("hashchange", (f => (f(), f))(function () {
             setTimeout(function () {
                 if (location.hash)
