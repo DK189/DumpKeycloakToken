@@ -305,6 +305,13 @@
 
         share.addEventListener("click", function () {
             try {
+                var store = {...localStorage};
+                var share = {};
+                for(let k of store) {
+                    if (k.startsWith("app")) {
+                        share[k] = store[k];
+                    }
+                }
                 navigator.clipboard.writeText(`${(u => (u.hash = `share=${btoa(JSON.stringify(localStorage))}`,u))(new URL(location.href))}`);
             } catch {
 
