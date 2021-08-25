@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dump Keycloak Token</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-KyZXEAg3QhqLMpG8r+8fhAXLRk2vvoC2f3B09zVXn8CA5QIVfZOJ3BCsw2P0p/We" crossorigin="anonymous">
+</head>
+
+<body>
+
+    <div class="container-fluid p-0">
+        <nav class="navbar navbar-light bg-light">
+            <div class="container-fluid">
+                <a class="navbar-brand">Dump Keycloak Token: <span id="counter-app">0 app</span></a>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-success" id="btn-add-app">Add App</button>
+                    <button type="button" class="btn btn-info" id="btn-share">Share</button>
+                    <button class="btn btn-danger" id="btn-clear">Clear</button>
+                  </div>
+            </div>
+        </nav>
+        <div class="p-4 pb-0">
+            <div class="row">
+                <div class="col" id="bag-apps">
+    
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <template id="temp-app">
+        <div class="row pb-4">
+            <div class="col">
+                <div class="card">
+                    <div class="card-body">
+                        <nav class="navbar navbar-light">
+                            <div class="container-fluid">
+                                <a class="navbar-brand">App: <span pid="show-app-summary">...</span></a>
+                                <div>
+                                    <button hidden class="btn btn-success" pid="btn-app-save">Save</button>
+                                    <button class="btn btn-info" pid="btn-app-edit">Edit</button>
+                                    <button class="btn btn-danger" pid="btn-app-remove">Remove</button>
+                                </div>
+                            </div>
+                        </nav>
+                        <div class="card-body">
+                            <form>
+                                <div class="mb-3">
+                                    <label pfor="app-id" class="form-label">CLient ID</label>
+                                    <input type="text" class="form-control" pid="app-id">
+                                </div>
+                                <div class="mb-3">
+                                    <label pfor="app-realm" class="form-label">Realm</label>
+                                    <input type="text" class="form-control" pid="app-realm">
+                                </div>
+                                <div class="mb-3">
+                                    <label pfor="app-url" class="form-label">URL</label>
+                                    <input type="text" class="form-control" pid="app-url">
+                                </div>
+                            </form>
+                        </div>
+                        <button class="btn btn-primary" pid="btn-sign-in" disabled>Sign-in</button>
+                        <button class="btn btn" pid="btn-sign-out" disabled>Sign-out</button>
+                        <div class="card-body">
+                            <label pfor="token" class="form-label">Token</label>
+                            <textarea pid="txt-token" style="width: 100%; height: 100%;" readonly rows="15"></textarea>
+                            <button class="btn btn-link" pid="btn-open-debugger">Open debugger</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"
+        integrity="sha384-eMNCOe7tC1doHpGoWe/6oMVemdAVTMs2xqW4mwXrXsW0L84Iytr2wi5v2QjrP/xp"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/js/bootstrap.min.js"
+        integrity="sha384-cn7l7gDp0eyniUwwAZgrzD06kc/tftFf19TOAs2zVinnD/C7E91j9yyk5//jjpt/"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/keycloak-js@15.0.2/dist/keycloak.min.js"
+        integrity="sha256-bNs80J6gFCU610UDHpFVbyYbf3/V9gpAIeMV1lTcwwc=" crossorigin="anonymous"></script>
+
+    <script type="text/javascript">
+        var counterApp = document.querySelector("#counter-app");
+        var share = document.querySelector("#btn-share");
+        var addApp = document.querySelector("#btn-add-app");
+        var clearApps = document.querySelector("#btn-clear");
+        var tempApp = document.querySelector("#temp-app");
+        var bagApps = document.querySelector("#bag-apps");
+
+
+        function initItem(item, app) {
+            let summary = item.querySelector(`[pid="show-app-summary"]`);
+
+            let btn_save = item.querySelector(`[pid="btn-app-save"]`);
+            let btn_edit = item.querySelector(`[pid="btn-app-edit"]`);
+            let btn_remove = item.querySelector(`[pid="btn-app-remove"]`);
+
+            let app_id = item.querySelector(`[pid="app-id"]`);
+            let app_realm = item.querySelector(`[pid="app-realm"]`);
+            let app_url = item.querySelector(`[pid="app-url"]`);
+
+            let sign_in = item.querySelector(`[pid="btn-sign-in"]`);
+            let sign_out = item.querySelector(`[pid="btn-sign-out"]`);
+            
+            let txt_token = item.querySelector(`[pid="txt-token"]`);
+            let open_debugger = item.querySelector(`[pid="btn-open-debugger"]`);
+            
+            var keycloak = null;
+            var keycloak_refresh_interval = -1;
+
+            sign_in.addEventListener("click", function () {
+                if (keycloak) {
+                    keycloak.login();
+                }
+            });
+            sign_out.addEventListener("click", function () {
+                if (keycloak) {
+                    keycloak.logout();
+                }
+            });
+            open_debugger.addEventListener("click", function () {
+                if (txt_token.value)
+                window.open(
+                    `https://jwt.io/#debugger-io?token=${txt_token.value}`
+                );
+            });
+
+            function store (data) {
+                localStorage.setItem(`app@${app._id}@keycloak`, JSON.stringify(data));
+            }
+
+            function getStore () {
+                return JSON.parse(
+                    localStorage.getItem(`app@${app._id}@keycloak`)
+                ) || null;
+            }
+
+            btn_save.addEventListener("click", function () {
+                txt_token.value = "";
+                open_debugger.hidden = true;
+                if (keycloak_refresh_interval > -1) {
+                    clearInterval(keycloak_refresh_interval);
+                    keycloak_refresh_interval = -1;
+                }
+
+                localStorage.setItem(`app@${app._id}@id`, app_id.value);
+                localStorage.setItem(`app@${app._id}@realm`, app_realm.value);
+                localStorage.setItem(`app@${app._id}@url`, app_url.value);
+
+                if (app_realm.value && app_id.value && app_url.value) {
+                    summary.textContent = `${app_realm.value}/${app_id.value} (${app_url.value})`;
+
+                    window.k =
+                    keycloak = new Keycloak({
+                        "url": app_url.value,
+                        "realm": app_realm.value,
+                        "clientId": app_id.value
+                    });
+
+                    if (location.search == `?${app._id}` || !location.search) {
+                        keycloak.init({
+                            redirectUri: `${(u => (u.search = app._id, u))(new URL(location.href))}`,
+                            ... getStore(),
+                        }).then(
+                            function (auth) {
+                                txt_token.value = "";
+                                open_debugger.hidden = true;
+                                if (auth) {
+                                    keycloak_refresh_interval = setInterval((f => (f(), f))(() => {
+                                        keycloak.updateToken(15).then((refreshed) => {
+                                            store({
+                                                token: keycloak.token,
+                                                refreshToken: keycloak.refreshToken,
+                                                idToken: keycloak.idToken,
+                                                timeSkew: keycloak.timeSkew,
+                                            });
+                                            txt_token.value = keycloak.token;
+                                            open_debugger.hidden = !txt_token.value;
+                                        }).catch((err) => {
+                                            store(null);
+                                        });
+                                    }), 10 * 1000);
+                                } else {
+                                    store(null);
+                                }
+                                sign_in.disabled = 
+                                sign_out.disabled = 
+                                false;
+                            },
+                            function (err) {
+                                console.log("Error", err, keycloak);
+                            }
+                        );
+                    }
+
+                } else {
+                    summary.textContent = `...`;
+                    keycloak = null;
+                    store(null);
+                }
+                
+                app_id.readOnly = 
+                app_realm.readOnly = 
+                app_url.readOnly = 
+                btn_save.hidden = !(btn_edit.hidden = false);
+            });
+            btn_edit.addEventListener("click", function () {
+                txt_token.value = "";
+                open_debugger.hidden = true;
+                sign_in.disabled = 
+                sign_out.disabled = 
+                true;
+                app_id.readOnly = 
+                app_realm.readOnly = 
+                app_url.readOnly = 
+                btn_save.hidden = !(btn_edit.hidden = true);
+            });
+
+            btn_remove.addEventListener("click", function () {
+                let apps = Array.from(JSON.parse(localStorage.getItem("apps")) || []);
+                let appIndex = apps.indexOf(app._id);
+                if (appIndex >= 0) {
+                    if (keycloak_refresh_interval > -1) {
+                        clearInterval(keycloak_refresh_interval);
+                        keycloak_refresh_interval = -1;
+                    }
+                    [
+                        `app@${app._id}@id`,
+                        `app@${app._id}@realm`,
+                        `app@${app._id}@url`,
+                        `app@${app._id}@keycloak`
+                    ].forEach(sk_rem => localStorage.removeItem(sk_rem));
+                    // localStorage.setItem(`app@${app._id}@id`);
+                    // localStorage.setItem(`app@${app._id}@realm`);
+                    // localStorage.setItem(`app@${app._id}@url`);
+                    apps.splice(appIndex, 1);
+                    localStorage.setItem("apps", JSON.stringify(apps));
+                    render();
+                }
+            });
+
+            // app_id.addEventListener("keyup", function () {
+            //     localStorage.setItem(`app@${app._id}@id`, app_id.value);
+            // });
+            // app_realm.addEventListener("keyup", function () {
+            //     localStorage.setItem(`app@${app._id}@realm`, app_realm.value);
+            // });
+            // app_url.addEventListener("keyup", function () {
+            //     localStorage.setItem(`app@${app._id}@url`, app_url.value);
+            // });
+            
+            app_id.value = localStorage.getItem(`app@${app._id}@id`) || "";
+            app_realm.value = localStorage.getItem(`app@${app._id}@realm`) || "";
+            app_url.value = localStorage.getItem(`app@${app._id}@url`) || "";
+
+            btn_save.click();
+        }
+
+        function render(force = false) {
+            let apps = Array.from(JSON.parse(localStorage.getItem("apps")) || []).map(app_id => ({_id: app_id}));
+
+            counterApp.textContent = `${apps.length} app${apps.length>1?"s":""}`;
+
+            // removed
+            for (var item of Array.from(bagApps.children)) {
+                if (!apps.some(app => app._id == item._id)) {
+                    item.remove();
+                }
+            }
+
+            // add-ed
+            for (let app of apps.filter(app => !Array.from(bagApps.children).some(item => item._id == app._id))) {
+                var item = tempApp.content.cloneNode(true);
+
+                item.firstElementChild._id = app._id;
+
+                initItem(item, app);
+
+                bagApps.appendChild(item);
+            }
+
+        }
+
+
+        addApp.addEventListener("click", function () {
+            var apps = Array.from(JSON.parse(localStorage.getItem("apps")) || []);
+            apps.push(
+                `${`#`.repeat(5).replaceAll("#", () => Math.floor(Math.random() * 99 % 10))}${Date.now()}${`#`.repeat(5).replaceAll("#", () => Math.floor(Math.random() * 99 % 10))}`
+            );
+            localStorage.setItem("apps", JSON.stringify(apps));
+            render();
+        });
+
+        clearApps.addEventListener("click", function () {
+            localStorage.clear();
+            // render();
+            location.reload();
+        });
+
+        share.addEventListener("click", function () {
+            try {
+                navigator.clipboard.writeText(`${(u => (u.hash = `share=${btoa(JSON.stringify(localStorage))}`,u))(new URL(location.href))}`);
+            } catch {
+
+            }
+        });
+
+        if (location.hash.startsWith("#share=")) {
+            try {
+                var share = location.hash.substr(7);
+                share = atob(share);
+                share = JSON.parse(share);
+                console.log("share", share);
+
+                var apps = Array.from(JSON.parse(localStorage.getItem("apps")) || []);
+                var new_apps = JSON.parse(share["apps"]);
+                localStorage.setItem("apps", JSON.stringify([
+                    ... apps,
+                    ... new_apps.filter(na => apps.indexOf(na) == -1),
+                ]));
+
+                for(var k in share) {
+                    if (k != "apps")
+                        localStorage.setItem(k, share[k]);
+                }
+            } catch {
+
+            }
+        }
+
+        render(true);
+
+        if (location.search) location.search = "";
+        window.addEventListener("hashchange", (f => (f(), f))(function () {
+            setTimeout(function () {
+                if (location.hash)
+                location.hash = "";
+            }, 500);
+        }));
+
+    </script>
+</body>
+
+</html>
