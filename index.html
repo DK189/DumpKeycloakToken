@@ -316,7 +316,6 @@
                         share[k] = store[k];
                     }
                 }
-                console.log("Sharing", share, store);
                 navigator.clipboard.writeText(`${(u => (u.hash = `share=${btoa(JSON.stringify(share))}`,u))(new URL(location.href))}`);
                 share_tooltip.show();
                 setTimeout(function () {
@@ -332,7 +331,7 @@
                 var share = location.hash.substr(7);
                 share = atob(share);
                 share = JSON.parse(share);
-                console.log("share", share);
+                // console.log("share", share);
 
                 var apps = Array.from(JSON.parse(localStorage.getItem("apps")) || []);
                 var new_apps = JSON.parse(share["apps"]);
